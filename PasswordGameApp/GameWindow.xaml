@@ -1,7 +1,9 @@
 ﻿<Window x:Class="PasswordGameApp.GameWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PasswordGameApp"
         Title="Password Game - Players" Height="400" Width="600">
+
     <Grid>
         <!-- Display Current Clue -->
         <TextBlock x:Name="ClueDisplay" Text="Clue: " 
