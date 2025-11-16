@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36623.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ThanksgivingGames", "ThanksgivingGames.csproj", "{7E09DA34-77F9-4C88-87AA-3E62A03C0F9B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7E09DA34-77F9-4C88-87AA-3E62A03C0F9B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E09DA34-77F9-4C88-87AA-3E62A03C0F9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E09DA34-77F9-4C88-87AA-3E62A03C0F9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E09DA34-77F9-4C88-87AA-3E62A03C0F9B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C7476C66-05C4-49AF-AE14-82287B95BFC3}
+	EndGlobalSection
+EndGlobal
