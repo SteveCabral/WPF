@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Organizer Application — Design Notes and PDFsharp Evaluation</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #202124;
+    --muted: #5f6368;
+    --border: #dadce0;
+    --code: #f1f3f4;
+    --accent: #1a73e8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Arial, sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 1100px;
+    margin: 32px auto;
+    padding: 0 24px 48px;
+  }
+  header, section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  h1 { margin-top: 0; font-size: 32px; }
+  h2 { margin-top: 0; color: #174ea6; }
+  h3 { color: #3c4043; }
+  .meta { color: var(--muted); }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: #e8f0fe;
+    padding: 14px 18px;
+    margin: 18px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f1f3f4; }
+  code, pre {
+    font-family: Consolas, "Courier New", monospace;
+  }
+  code {
+    background: var(--code);
+    padding: 2px 5px;
+    border-radius: 4px;
+  }
+  pre {
+    background: #202124;
+    color: #f8f9fa;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  .diagram {
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    white-space: pre-wrap;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .good { color: #137333; font-weight: 600; }
+  .warn { color: #b06000; font-weight: 600; }
+  ul, ol { padding-left: 24px; }
+  a { color: #1a73e8; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+
+<body>
+<main>
+
+<header>
+  <h1>PDF Organizer / Viewer Application</h1>
+  <p class="meta">Conversation reference: Visual Studio 2026, WPF, .NET 10, PDFsharp, and PDF page organization</p>
+  <p>This document consolidates the discussion about building a Windows desktop application that can open PDF files, preview their pages, reorder and add pages, filter pages by physical size, and save the resulting PDF.</p>
+</header>
+
+<section>
+  <h2>1. Original Application Goal</h2>
+  <p>The proposed application is a Windows desktop program that would allow the user to:</p>
+  <ul>
+    <li>Open an existing PDF.</li>
+    <li>Preview all pages as thumbnails.</li>
+    <li>Click a thumbnail to see a larger preview.</li>
+    <li>Move/reorder pages.</li>
+    <li>Delete pages.</li>
+    <li>Add blank pages.</li>
+    <li>Insert pages from another PDF.</li>
+    <li>Filter pages by physical size, especially Letter and Legal.</li>
+    <li>Eventually save the modified document as a new PDF.</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Core architectural idea:</strong> Build a real PDF application with its own PDF engine rather than making the program dependent on the Adobe Acrobat viewer.
+  </div>
+</section>
+
+<section>
+  <h2>2. Recommended Technology Stack</h2>
+  <table>
+    <tr><th>Component</th><th>Recommendation</th><th>Reason</th></tr>
+    <tr><td>IDE</td><td>Visual Studio 2026</td><td>Natural development environment for C# and WPF.</td></tr>
+    <tr><td>Language</td><td>C#</td><td>Strong Windows desktop and PDF-library ecosystem.</td></tr>
+    <tr><td>UI framework</td><td>WPF</td><td>Well suited to desktop applications, data binding, complex layouts, images, and document-oriented interfaces.</td></tr>
+    <tr><td>Runtime</td><td>.NET 10</td><td>Current modern .NET target discussed for Visual Studio 2026.</td></tr>
+    <tr><td>Architecture</td><td>MVVM</td><td>Keeps the UI, application state, and PDF operations separated.</td></tr>
+    <tr><td>PDF library</td><td>PDFsharp-WPF 6.2.4</td><td>Strong candidate for PDF creation/manipulation and WPF integration.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>3. Important Distinction: Acrobat vs. a PDF Engine</h2>
+  <p>The initial question considered whether an application could interact with the PDF classes associated with an installed Adobe Acrobat PDF viewer.</p>
+
+  <p>There are two fundamentally different approaches:</p>
+
+  <h3>Approach A — Automate Acrobat</h3>
+  <div class="diagram">Your WPF Application
+        |
+        | COM / OLE / Acrobat interfaces
+        v
+Adobe Acrobat
+        |
+        v
+      PDF</div>
+
+  <p>Adobe provides Acrobat SDK technologies for application integration. However, this approach makes the program dependent on Acrobat and on which Acrobat product is installed. Acrobat Reader also has much more limited automation capabilities than the full Acrobat product.</p>
+
+  <h3>Approach B — Use a PDF library directly</h3>
+  <div class="diagram">Your WPF Application
+        |
+        v
+   PDF Service
+        |
+        v
+    PDF Library
+        |
+        v
+       PDF</div>
+
+  <p>This is the recommended architecture. Acrobat can be installed on the computer, but the application does not need to use or control it.</p>
+
+  <div class="callout">
+    <strong>Recommendation:</strong> Treat Acrobat as an optional PDF viewer installed on the machine, not as a dependency of the application.
+  </div>
+</section>
+
+<section>
+  <h2>4. PDFsharp Evaluation</h2>
+  <p>The NuGet package evaluated in the conversation was:</p>
+  <p><a href="https://www.nuget.org/packages/PDFSharp" target="_blank" rel="noopener">PDFsharp on NuGet</a></p>
+
+  <p>The current stable version discussed was <strong>PDFsharp 6.2.4</strong>.</p>
+
+  <table>
+    <tr><th>Requirement</th><th>Assessment</th></tr>
+    <tr><td>Open existing PDFs</td><td class="good">Yes</td></tr>
+    <tr><td>Create PDFs</td><td class="good">Yes</td></tr>
+    <tr><td>Modify PDFs</td><td class="good">Yes</td></tr>
+    <tr><td>Add pages</td><td class="good">Yes</td></tr>
+    <tr><td>Delete pages</td><td class="good">Yes</td></tr>
+    <tr><td>Move/reorder pages</td><td class="good">Yes</td></tr>
+    <tr><td>Import pages from another PDF</td><td class="good">Yes</td></tr>
+    <tr><td>Determine page dimensions</td><td class="good">Yes</td></tr>
+    <tr><td>Letter/Legal filtering</td><td class="good">Yes</td></tr>
+    <tr><td>Render pages for thumbnails/previews</td><td class="good">Yes, using the appropriate build/features</td></tr>
+    <tr><td>WPF integration</td><td class="good">Yes</td></tr>
+    <tr><td>Requires Adobe Acrobat</td><td class="good">No</td></tr>
+    <tr><td>Open-source option</td><td class="good">Yes</td></tr>
+    <tr><td>Overall fit for this project</td><td class="good">Strong candidate</td></tr>
+  </table>
+
+  <p>PDFsharp's documentation describes it as a library for creating and modifying PDF documents without requiring Adobe Acrobat or Adobe's PDF Library.</p>
+</section>
+
+<section>
+  <h2>5. Which PDFsharp Package?</h2>
+  <p>PDFsharp has multiple builds. For a WPF application, the WPF-specific build is the one to investigate first.</p>
+
+  <pre>PDFsharp
+PDFsharp-GDI
+PDFsharp-WPF</pre>
+
+  <p>For this project, the working recommendation is:</p>
+
+  <pre>PDFsharp-WPF 6.2.4</pre>
+
+  <p>The generic <code>PDFsharp</code> package is not necessarily the best package choice merely because it is the package linked in the original question. The WPF build is intended to provide WPF-specific functionality.</p>
+
+  <p>Reference: <a href="https://docs.pdfsharp.net/General/Overview/Choose-PDFsharp-version.html" target="_blank" rel="noopener">PDFsharp — Choosing a version</a></p>
+</section>
+
+<section>
+  <h2>6. PDF Rendering vs. PDF Editing</h2>
+  <p>A key concept identified in the discussion is that PDF editing and PDF rendering are different jobs.</p>
+
+  <div class="diagram">PDF page
+   |
+   +-- Text
+   +-- Vector graphics
+   +-- Images
+   +-- Fonts
+   +-- Transparency
+   +-- Annotations
+   +-- Forms
+   |
+   v
+PDF rendering engine
+   |
+   v
+Bitmap/image
+   |
+   v
+WPF Image control</div>
+
+  <p>The application needs a rendering path so it can turn a PDF page into an image suitable for a thumbnail or a large preview.</p>
+
+  <p>This is one reason the first implementation should be a small proof-of-concept rather than immediately building the entire application.</p>
+</section>
+
+<section>
+  <h2>7. Letter and Legal Page Sizes</h2>
+  <p>PDF page dimensions are normally represented in points.</p>
+
+  <pre>72 points = 1 inch
+
+US Letter:
+8.5 × 11 inches
+612 × 792 points
+
+US Legal:
+8.5 × 14 inches
+612 × 1008 points</pre>
+
+  <p>The application can inspect the page dimensions and classify each page.</p>
+
+  <pre>public enum PageSizeCategory
+{
+    Letter,
+    Legal,
+    A4,
+    Other
+}</pre>
+
+  <p>The filter then becomes a UI concern rather than something the PDF engine needs to understand:</p>
+
+  <pre>Filter: [ All ▼ ]
+
+All
+Letter
+Legal
+A4
+Landscape
+Portrait</pre>
+
+  <p>The page-size classifier can also use a tolerance so that small floating-point or document-generation differences do not cause a page that is effectively Letter to be classified as Other.</p>
+</section>
+
+<section>
+  <h2>8. Recommended Application Architecture</h2>
+
+  <div class="diagram">PDFOrganizer
+|
++-- Models
+|   +-- PdfDocumentModel
+|   +-- PdfPageModel
+|   +-- PageSizeCategory
+|
++-- ViewModels
+|   +-- MainViewModel
+|   +-- PageViewModel
+|   +-- FilterViewModel
+|
++-- Views
+|   +-- MainWindow.xaml
+|   +-- PageThumbnail.xaml
+|   +-- PdfPreview.xaml
+|
++-- Services
+|   +-- PdfService
+|   +-- PdfRenderer
+|   +-- FileService
+|
++-- Commands
+    +-- MovePageCommand
+    +-- DeletePageCommand
+    +-- InsertPageCommand
+    +-- SaveCommand</div>
+
+  <p>This structure keeps PDF-specific code out of the visual controls and makes the application easier to extend later.</p>
+</section>
+
+<section>
+  <h2>9. Page Ordering Model</h2>
+  <p>A particularly useful design is to avoid rewriting the physical PDF file every time the user drags a page.</p>
+
+  <p>Instead, the application maintains the current page order in memory:</p>
+
+  <pre>ObservableCollection&lt;PdfPageViewModel&gt;</pre>
+
+  <p>For example:</p>
+
+  <pre>Original:
+1  2  3  4  5  6
+
+User moves Page 5 before Page 3:
+
+1  2  5  3  4  6</pre>
+
+  <p>The PDF is rewritten only when the user chooses Save or Save As.</p>
+
+  <div class="diagram">User drags page
+       |
+       v
+ObservableCollection changes
+       |
+       v
+UI immediately reflects new order
+       |
+       v
+User chooses Save
+       |
+       v
+PDFsharp creates the output PDF
+       |
+       v
+New PDF written to disk</div>
+
+  <p>This design also makes undo/redo much easier to implement later.</p>
+</section>
+
+<section>
+  <h2>10. Importing Pages from Another PDF</h2>
+  <p>One useful future feature is importing pages from another PDF.</p>
+
+  <pre>Current.pdf
+
+Page 1
+Page 2
+Page 3
+Page 4
+
+Other.pdf
+
+Page 1
+Page 2
+
+Result
+
+Page 1
+Page 2
+Other Page 1
+Other Page 2
+Page 3
+Page 4</pre>
+
+  <p>PDFsharp supports importing pages from another PDF into a new or modified document, making this a realistic feature for the planned application.</p>
+</section>
+
+<section>
+  <h2>11. Adding Pages</h2>
+  <p>The application can eventually support several forms of page insertion.</p>
+
+  <h3>Blank page</h3>
+  <pre>[Add Page]
+     |
+     v
+Blank Letter page
+     |
+     v
+Insert at selected position</pre>
+
+  <h3>Pages from another PDF</h3>
+  <p>Select another PDF, choose one or more pages, and insert them into the current document.</p>
+
+  <h3>Images</h3>
+  <p>A later version could allow JPG, PNG, or TIFF images to be converted into PDF pages.</p>
+</section>
+
+<section>
+  <h2>12. Why WPF Is a Good Fit</h2>
+  <p>WPF provides several features that fit this application particularly well:</p>
+  <ul>
+    <li>Data binding.</li>
+    <li><code>ObservableCollection</code>.</li>
+    <li>MVVM support patterns.</li>
+    <li><code>ItemsControl</code> and <code>ListBox</code> for page collections.</li>
+    <li>Image display.</li>
+    <li>Drag-and-drop interactions.</li>
+    <li>Commands.</li>
+    <li>Templates and styling.</li>
+    <li>Asynchronous operations.</li>
+  </ul>
+
+  <p>The page-thumbnail area can therefore be treated as a bound collection rather than a collection of manually positioned controls.</p>
+</section>
+
+<section>
+  <h2>13. Proposed User Interface</h2>
+
+  <div class="diagram">+--------------------------------------------------------------+
+| File   Edit   View   Pages                                   |
++--------------------------------------------------------------+
+| Filter: [ All ▼ ]   [Add Pages] [Delete] [Move] [Save]      |
++---------------+----------------------------------------------+
+|               |                                              |
+| Page 1        |                                              |
+| +---------+   |                                              |
+| |         |   |              LARGE PAGE PREVIEW              |
+| |   PDF   |   |                                              |
+| |         |   |                                              |
+| +---------+   |                                              |
+|               |                                              |
+| Page 2        |                                              |
+| +---------+   |                                              |
+| |         |   |                                              |
+| |   PDF   |   |                                              |
+| +---------+   |                                              |
+|               |                                              |
+| Page 3        |                                              |
+| +---------+   |                                              |
+| |         |   |                                              |
+| |   PDF   |   |                                              |
+| +---------+   |                                              |
++---------------+----------------------------------------------+</div>
+</section>
+
+<section>
+  <h2>14. Suggested Development Phases</h2>
+
+  <h3>Phase 1 — Viewer foundation</h3>
+  <ol>
+    <li>Create WPF project.</li>
+    <li>Target .NET 10.</li>
+    <li>Install PDFsharp-WPF.</li>
+    <li>Open a PDF.</li>
+    <li>Count pages.</li>
+    <li>Read page dimensions.</li>
+    <li>Render one page.</li>
+    <li>Display the page in a WPF control.</li>
+  </ol>
+
+  <h3>Phase 2 — Page thumbnails</h3>
+  <ol>
+    <li>Render each page at thumbnail resolution.</li>
+    <li>Create a page view model.</li>
+    <li>Display thumbnails in a scrollable collection.</li>
+    <li>Click a thumbnail to update the large preview.</li>
+  </ol>
+
+  <h3>Phase 3 — Page information and filtering</h3>
+  <ol>
+    <li>Determine physical dimensions.</li>
+    <li>Classify Letter, Legal, A4, and Other.</li>
+    <li>Add All/Letter/Legal/A4 filters.</li>
+    <li>Optionally add Portrait/Landscape filters.</li>
+  </ol>
+
+  <h3>Phase 4 — Page organization</h3>
+  <ol>
+    <li>Delete pages.</li>
+    <li>Drag and drop to reorder.</li>
+    <li>Select multiple pages.</li>
+    <li>Rotate pages.</li>
+  </ol>
+
+  <h3>Phase 5 — Page insertion and saving</h3>
+  <ol>
+    <li>Add blank pages.</li>
+    <li>Import pages from another PDF.</li>
+    <li>Save As.</li>
+    <li>Preserve the desired page order in the generated PDF.</li>
+  </ol>
+
+  <h3>Phase 6 — Advanced features</h3>
+  <ol>
+    <li>Undo/redo.</li>
+    <li>Extract selected pages.</li>
+    <li>Combine PDFs.</li>
+    <li>Import images as pages.</li>
+    <li>Search.</li>
+    <li>Bookmarks.</li>
+    <li>Annotations.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>15. Why Start With a Proof of Concept?</h2>
+  <p>The most important technical question to validate early is page rendering.</p>
+
+  <p>A minimal test application should do only this:</p>
+
+  <div class="diagram">Open PDF
+   |
+   v
+Count pages
+   |
+   v
+Read dimensions of every page
+   |
+   v
+Render Page 1
+   |
+   v
+Display Page 1 in WPF</div>
+
+  <p>If this works correctly with representative PDFs, the rest of the application can be built around the result.</p>
+
+  <p>This is preferable to building the entire application first and discovering later that the rendering behavior, PDF compatibility, or performance is inadequate.</p>
+</section>
+
+<section>
+  <h2>16. PDFsharp vs. Acrobat Dependency</h2>
+  <table>
+    <tr><th>Characteristic</th><th>Acrobat automation</th><th>PDFsharp</th></tr>
+    <tr><td>Requires Acrobat</td><td>Generally yes</td><td>No</td></tr>
+    <tr><td>Application controls PDF directly</td><td>Indirectly</td><td>Yes</td></tr>
+    <tr><td>Depends on Adobe product/version</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Suitable for custom page organizer</td><td>Possible, but unnecessarily coupled</td><td>Strong fit</td></tr>
+    <tr><td>Learning value</td><td>More focused on automation/COM</td><td>Better fit for learning PDF application architecture</td></tr>
+  </table>
+
+  <div class="callout">
+    The application should own the PDF workflow. Adobe Acrobat can remain available as a separate application for users who want to inspect or open the resulting PDFs.
+  </div>
+</section>
+
+<section>
+  <h2>17. MigraDoc</h2>
+  <p>Do not add MigraDoc simply because it appears alongside PDFsharp packages.</p>
+
+  <p>MigraDoc is primarily a high-level document generation/layout system. The proposed application is primarily concerned with opening, inspecting, rendering, reorganizing, importing, and saving existing PDF pages.</p>
+
+  <p>PDFsharp itself can be used independently of MigraDoc.</p>
+</section>
+
+<section>
+  <h2>18. Licensing Consideration</h2>
+  <p>PDFsharp is an open-source project and is attractive for this project because it avoids immediately committing to a commercial PDF SDK.</p>
+
+  <p>For a personal application, this is especially useful because development can begin without purchasing an enterprise PDF SDK.</p>
+
+  <p>Before distributing a commercial application, the exact license of the version and components used should always be reviewed directly from the project's current licensing documentation.</p>
+</section>
+
+<section>
+  <h2>19. Other PDF Libraries Considered</h2>
+  <p>The conversation briefly considered alternatives such as:</p>
+  <ul>
+    <li>PDFsharp</li>
+    <li>Apryse / PDFTron</li>
+    <li>Foxit PDF SDK</li>
+    <li>Telerik PDF processing</li>
+    <li>Syncfusion PDF</li>
+    <li>GemBox.Pdf</li>
+    <li>Adobe PDF Library</li>
+  </ul>
+
+  <p>Commercial SDKs may provide broader or more mature PDF functionality, but they introduce licensing costs and complexity. PDFsharp is attractive as the first library to prototype because it closely matches the basic page-organization requirements.</p>
+</section>
+
+<section>
+  <h2>20. Current Recommendation</h2>
+
+  <div class="callout">
+    <strong>Recommended starting stack:</strong><br>
+    Visual Studio 2026 + C# + WPF + .NET 10 + PDFsharp-WPF 6.2.4 + MVVM.
+  </div>
+
+  <p>Initially, no additional PDF library should be added. First validate that PDFsharp-WPF can open and render the PDFs that matter to the project.</p>
+
+  <p>The application should not depend on Adobe Acrobat being installed.</p>
+</section>
+
+<section>
+  <h2>21. First Practical Milestone</h2>
+  <p>The first coding milestone should be deliberately small:</p>
+
+  <pre>1. Create a WPF Application in Visual Studio 2026.
+2. Target .NET 10.
+3. Install PDFsharp-WPF 6.2.4.
+4. Add an Open PDF button.
+5. Open a real PDF.
+6. Display the number of pages.
+7. Display each page's width and height.
+8. Render Page 1.
+9. Show Page 1 in a WPF Image control.</pre>
+
+  <p>Once that works, build the thumbnail collection and page-selection mechanism.</p>
+</section>
+
+<section>
+  <h2>22. Useful References</h2>
+  <ul>
+    <li><a href="https://www.nuget.org/packages/PDFSharp" target="_blank" rel="noopener">PDFsharp on NuGet</a></li>
+    <li><a href="https://docs.pdfsharp.net/General/Overview/Choose-PDFsharp-version.html" target="_blank" rel="noopener">PDFsharp — Choose a PDFsharp version</a></li>
+    <li><a href="https://docs.pdfsharp.net/General/Overview/NuGet-Packages.html" target="_blank" rel="noopener">PDFsharp — NuGet packages</a></li>
+    <li><a href="https://docs.pdfsharp.net/General/Overview/FAQ.html" target="_blank" rel="noopener">PDFsharp — FAQ</a></li>
+    <li><a href="https://opensource.adobe.com/dc-acrobat-sdk-docs/library/overview/index.html" target="_blank" rel="noopener">Adobe Acrobat SDK documentation</a></li>
+  </ul>
+</section>
+
+<section>
+  <h2>23. Mental Model for the Project</h2>
+  <p>The most useful way to think about the application is that it has three layers:</p>
+
+  <div class="diagram">             USER INTERFACE
+                    |
+                    v
+             APPLICATION MODEL
+                    |
+                    v
+              PDF ENGINE
+                    |
+                    v
+                  FILE</div>
+
+  <p><strong>WPF</strong> handles what the user sees and interacts with.</p>
+  <p><strong>MVVM/application logic</strong> handles page selection, ordering, filtering, commands, and application state.</p>
+  <p><strong>PDFsharp</strong> handles the actual PDF document structures, pages, dimensions, importing, modification, and output.</p>
+
+  <p>This separation is the central design principle to preserve as the project grows.</p>
+</section>
+
+<footer>
+  Prepared as a consolidated reference from the PDF application / PDFsharp discussion.
+</footer>
+
+</main>
+</body>
+</html>

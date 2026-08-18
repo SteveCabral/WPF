@@ -1,0 +1,292 @@
+<Window x:Class="WPF_PDF_app.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding WindowTitle}" 
+        Height="800" Width="1400">
+
+    <Window.Resources>
+        <!-- DataTemplate for Thumbnail Items -->
+        <DataTemplate x:Key="ThumbnailTemplate">
+            <Border BorderThickness="2" 
+                    Margin="5"
+                    CornerRadius="4"
+                    Width="160"
+                    Background="White">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+                        <Style.Triggers>
+                            <!-- Selected State -->
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="BorderBrush" Value="#2196F3"/>
+                                <Setter Property="Background" Value="#E3F2FD"/>
+                            </DataTrigger>
+                            <!-- Hover State -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#F5F5F5"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <Grid>
+                    <!-- Thumbnail Image -->
+                    <Image Source="{Binding ThumbnailImage}" 
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="5"/>
+
+                    <!-- Page Number Overlay -->
+                    <Border Background="#AA000000" 
+                            CornerRadius="3"
+                            Padding="6,2"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,0,5">
+                        <TextBlock Text="{Binding PageNumberText}" 
+                                   Foreground="White"
+                                   FontSize="11"
+                                   FontWeight="Bold"/>
+                    </Border>
+
+                    <!-- Loading Indicator -->
+                    <TextBlock Text="Loading..." 
+                               Foreground="Gray"
+                               FontSize="10"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel: Thumbnail Gallery -->
+            <Border Grid.Column="0" 
+                    BorderBrush="LightGray" 
+                    BorderThickness="0,0,1,0"
+                    Background="#FAFAFA">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <StackPanel Grid.Row="0" Margin="10">
+                        <TextBlock Text="PDF Organizer" 
+                                   FontSize="16" 
+                                   FontWeight="Bold" 
+                                   Margin="0,0,0,3"/>
+                        <TextBlock Text="{Binding VersionText}" 
+                                   FontSize="11" 
+                                   Foreground="Gray"
+                                   Margin="0,0,0,10"/>
+
+                        <Button Content="Open PDF" 
+                                Command="{Binding OpenPdfCommand}"
+                                Height="35" 
+                                FontSize="13"
+                                Background="#2196F3"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Margin="0,0,0,10">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        CornerRadius="4"
+                                                        Padding="10,8">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#1976D2"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Thumbnail ListView -->
+                    <ListView Grid.Row="1"
+                              ItemsSource="{Binding Pages}"
+                              SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                              ItemTemplate="{StaticResource ThumbnailTemplate}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              VirtualizingStackPanel.IsVirtualizing="True"
+                              VirtualizingStackPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                    </ListView>
+                </Grid>
+            </Border>
+
+            <!-- Center Panel: Large Preview -->
+            <Border Grid.Column="1" 
+                    Background="White"
+                    Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Progress Bar -->
+                    <ProgressBar Grid.Row="0"
+                                 Height="4"
+                                 IsIndeterminate="{Binding IsLoading}"
+                                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                 Margin="0,0,0,10"/>
+
+                    <!-- Preview Image -->
+                    <ScrollViewer Grid.Row="1"
+                                  HorizontalScrollBarVisibility="Auto" 
+                                  VerticalScrollBarVisibility="Auto">
+                        <Image Source="{Binding PreviewImage}" 
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Top"/>
+                    </ScrollViewer>
+
+                    <!-- No PDF Loaded Message -->
+                    <TextBlock Grid.Row="1"
+                               Text="Open a PDF to get started"
+                               FontSize="18"
+                               Foreground="Gray"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding Pages.Count, Converter={StaticResource ZeroToVisibilityConverter}}"/>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Information -->
+            <Border Grid.Column="2" 
+                    BorderBrush="LightGray" 
+                    BorderThickness="1,0,0,0"
+                    Background="#FAFAFA"
+                    Padding="10">
+                <StackPanel>
+                    <TextBlock Text="Document Info" 
+                               FontSize="14" 
+                               FontWeight="Bold"
+                               Margin="0,0,0,10"/>
+
+                    <TextBlock Text="File Name:" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,5,0,2"/>
+                    <TextBlock Text="{Binding FileName}" 
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10"/>
+
+                    <TextBlock Text="Total Pages:" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,5,0,2"/>
+                    <TextBlock Text="{Binding PageCount}" 
+                               FontSize="12"
+                               FontWeight="Bold"
+                               Margin="0,0,0,10"/>
+
+                    <Separator Margin="0,10"/>
+
+                    <TextBlock Text="Selected Page" 
+                               FontSize="14" 
+                               FontWeight="Bold"
+                               Margin="0,10,0,10"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                    <TextBlock Text="Page Number:" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,5,0,2"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding SelectedPage.PageNumber}" 
+                               FontSize="12"
+                               Margin="0,0,0,10"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                    <TextBlock Text="Dimensions:" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,5,0,2"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding SelectedPage.DimensionsText}" 
+                               FontSize="12"
+                               Margin="0,0,0,5"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding SelectedPage.DimensionsInchesText}" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,0,0,10"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                    <TextBlock Text="Orientation:" 
+                               FontSize="11"
+                               Foreground="Gray"
+                               Margin="0,5,0,2"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding SelectedPage.Orientation}" 
+                               FontSize="12"
+                               Margin="0,0,0,10"
+                               Visibility="{Binding SelectedPage, Converter={StaticResource NullToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="1" 
+                Background="#F0F0F0" 
+                BorderBrush="LightGray" 
+                BorderThickness="0,1,0,0"
+                Height="24">
+            <Grid>
+                <TextBlock Text="{Binding LoadingMessage}" 
+                           Margin="10,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                <TextBlock Margin="10,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                    <Run Text="Pages: "/>
+                    <Run Text="{Binding PageCount}" FontWeight="Bold"/>
+                </TextBlock>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
